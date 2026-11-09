@@ -1,0 +1,17 @@
+{
+  "name": "BLACKOUT",
+  "short_name": "BLACKOUT",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#090909",
+  "theme_color": "#090909",
+  "description": "과거를 덮고, 새로운 문장을 적는 다이어리.",
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

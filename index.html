@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#090909">
+  <meta name="description" content="과거를 덮고, 새로운 문장을 적는 다이어리.">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" href="./icon.svg" type="image/svg+xml">
+  <title>BLACKOUT</title>
+  <style>
+    :root{--bg:#090909;--panel:#171717;--paper:#f1efe9;--muted:#8b8881;--line:#333}
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--paper);font-family:system-ui,-apple-system,"Noto Sans KR",sans-serif}
+    button,input,textarea{font:inherit}
+    button{cursor:pointer}
+    .app{max-width:720px;margin:auto;min-height:100dvh;padding:env(safe-area-inset-top) 18px calc(94px + env(safe-area-inset-bottom))}
+    header{height:66px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #242424}
+    .brand{font-size:18px;font-weight:800;letter-spacing:5px}
+    .iconbtn{background:transparent;border:1px solid #383838;color:var(--paper);border-radius:50%;width:40px;height:40px;font-size:17px}
+    .intro{padding:27px 2px 23px}
+    .eyebrow{font-size:10px;letter-spacing:2.5px;color:var(--muted)}
+    h1{font-family:Georgia,serif;font-weight:400;font-size:29px;line-height:1.2;margin:12px 0 8px}
+    .sub{font-size:12px;color:var(--muted);line-height:1.7}
+    .empty{border:1px dashed #393939;border-radius:8px;padding:38px 20px;text-align:center;color:var(--muted);line-height:1.8;margin-top:8px}
+    .entry{background:var(--panel);border:1px solid #252525;border-radius:8px;padding:17px;margin:10px 0;display:flex;align-items:center;gap:14px}
+    .entry .bar{height:42px;width:4px;background:var(--paper)}
+    .entry .meta{font-size:10px;color:var(--muted);letter-spacing:1px}
+    .entry .memo{font-size:14px;margin-top:7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:72vw}
+    .entry button{margin-left:auto;background:none;border:0;color:var(--muted);font-size:18px}
+    .fab{position:fixed;bottom:calc(20px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);border:0;border-radius:30px;background:var(--paper);color:#111;padding:14px 23px;font-weight:700;box-shadow:0 8px 30px #0008}
+    .screen{display:none;position:fixed;inset:0;background:var(--bg);z-index:5;overflow:auto;padding:env(safe-area-inset-top) 15px calc(20px + env(safe-area-inset-bottom))}
+    .screen.active{display:block}
+    .screenhead{max-width:690px;margin:auto;height:58px;display:flex;align-items:center;justify-content:space-between}
+    .screenhead strong{letter-spacing:2px;font-size:12px}
+    .textbtn{background:none;border:0;color:var(--paper);padding:9px;font-size:13px}
+    .sheet{max-width:690px;margin:8px auto 0;background:var(--paper);color:#151515;border-radius:3px;min-height:calc(100dvh - 100px);position:relative;overflow:hidden;padding:25px 22px 24px;display:flex;flex-direction:column}
+    .sectionlabel{font-size:10px;letter-spacing:2px;color:#77736c;font-weight:700}
+    #original{width:100%;flex:1;min-height:220px;resize:none;border:0;outline:0;background:transparent;color:#222;font-size:16px;line-height:1.8;padding:18px 0;z-index:1}
+    #original::placeholder,#newmemo::placeholder{color:#a29e96}
+    .cover-wrap{position:absolute;inset:0 0 0 0;pointer-events:none;z-index:2}
+    #coverCanvas{width:100%;height:100%;display:block;touch-action:none}
+    .newmemo-wrap{position:relative;z-index:3;background:var(--paper);margin-top:auto;padding-top:13px;border-top:1px solid #ccc8bf}
+    #newmemo{width:100%;resize:vertical;min-height:76px;border:0;outline:0;background:transparent;color:#111;font-size:16px;line-height:1.5;padding:12px 0 0}
+    .tools{max-width:690px;margin:12px auto;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+    .tool{border:1px solid #3b3b3b;background:#171717;color:var(--paper);padding:10px 12px;border-radius:5px;font-size:11px}
+    .tool.active{background:var(--paper);color:#111;border-color:var(--paper)}
+    .tool:disabled{opacity:.35}
+    .hint{color:var(--muted);font-size:10px;flex:1;min-width:130px}
+    .settings{max-width:680px;margin:30px auto;background:var(--panel);padding:20px;border-radius:8px}
+    .settingrow{display:flex;justify-content:space-between;gap:15px;align-items:center}
+    .settingrow p{font-size:13px;line-height:1.6}
+    .settingrow small{color:var(--muted)}
+    input[type=checkbox]{accent-color:#eee;width:20px;height:20px}
+    .danger{color:#e7a5a5}
+    .toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);background:#eee;color:#111;padding:10px 15px;border-radius:5px;font-size:12px;display:none;z-index:20}
+    @media(min-width:600px){.sheet{min-height:690px}.app{padding-left:28px;padding-right:28px}}
+  </style>
+</head>
+<body>
+  <main class="app" id="home">
+    <header><div class="brand">BLACKOUT</div><button class="iconbtn" id="settingsBtn" aria-label="설정">⚙</button></header>
+    <section class="intro"><div class="eyebrow">A PRIVATE JOURNAL</div><h1>Cover the past.<br>Write something new.</h1><div class="sub">덮어두고 싶은 일을 적고, 그 위에 새로운 문장을 남겨보세요.</div></section>
+    <div class="eyebrow" style="margin:12px 2px">YOUR PAGES</div>
+    <section id="entries"></section>
+    <button class="fab" id="newBtn">＋　새 페이지</button>
+  </main>
+
+  <section class="screen" id="editor">
+    <div class="screenhead"><button class="textbtn" id="backBtn">← 목록</button><strong>BLACKOUT / PAGE</strong><button class="textbtn" id="saveBtn">저장</button></div>
+    <div class="sheet" id="sheet">
+      <div class="sectionlabel">01 / WHAT HAPPENED?</div>
+      <textarea id="original" placeholder="여기에 안 좋았던 일을 적어보세요..."></textarea>
+      <div class="cover-wrap"><canvas id="coverCanvas"></canvas></div>
+      <div class="newmemo-wrap"><div class="sectionlabel">02 / SOMETHING NEW</div><textarea id="newmemo" placeholder="이제 새롭게 적고 싶은 말을 써보세요."></textarea></div>
+    </div>
+    <div class="tools">
+      <button class="tool" id="drawBtn">✎ 덮기 모드</button>
+      <button class="tool" id="undoBtn">↶ 실행 취소</button>
+      <button class="tool" id="clearBtn">초기화</button>
+      <button class="tool" id="revealBtn">원문 보기</button>
+      <span class="hint" id="modeHint">글쓰기 모드 · 원문을 작성하세요.</span>
+    </div>
+  </section>
+
+  <section class="screen" id="settings">
+    <div class="screenhead"><button class="textbtn" id="settingsBack">← 목록</button><strong>SETTINGS</strong><span></span></div>
+    <div class="settings">
+      <div class="eyebrow">PRIVACY</div>
+      <div class="settingrow"><div><p>과거 기록 다시 보기</p><small>켜면 편집 화면에서 원문을 확인할 수 있습니다.</small></div><input type="checkbox" id="revealSetting" checked></div>
+    </div>
+    <div class="settings">
+      <div class="eyebrow">LOCAL STORAGE</div>
+      <p class="sub">기록은 현재 브라우저의 이 기기에 저장됩니다. 브라우저 데이터 삭제나 기기 변경 시 기록이 사라질 수 있습니다.</p>
+      <button class="tool danger" id="exportBtn">기록 백업 파일 내보내기</button>
+      <input type="file" id="importFile" accept="application/json" hidden>
+      <button class="tool" id="importBtn">백업 파일 가져오기</button>
+    </div>
+  </section>
+  <div class="toast" id="toast"></div>
+
+<script>
+const $ = id => document.getElementById(id);
+const STORE='blackout_pwa_entries_v1', PREF='blackout_pwa_reveal_v1';
+let entries=[], currentId=null, strokes=[], activeStroke=null, drawing=false, reveal=true, editorMode=false;
+let canvas=$('coverCanvas'), ctx=canvas.getContext('2d'), sheet=$('sheet');
+
+function toast(msg){const t=$('toast');t.textContent=msg;t.style.display='block';setTimeout(()=>t.style.display='none',2200)}
+function load(){try{entries=JSON.parse(localStorage.getItem(STORE)||'[]')}catch{entries=[]}reveal=localStorage.getItem(PREF)!=='false';$('revealSetting').checked=reveal;renderEntries()}
+function persist(){localStorage.setItem(STORE,JSON.stringify(entries))}
+function dateLabel(s){const d=new Date(s);return `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`}
+function renderEntries(){
+ const root=$('entries');root.innerHTML='';
+ if(!entries.length){root.innerHTML='<div class="empty">아직 기록이 없습니다.<br>첫 페이지를 만들어보세요.</div>';return}
+ [...entries].sort((a,b)=>b.createdAt.localeCompare(a.createdAt)).forEach(e=>{
+  const row=document.createElement('div');row.className='entry';
+  const bar=document.createElement('div');bar.className='bar';
+  const content=document.createElement('div');content.style.minWidth='0';content.style.flex='1';
+  const date=document.createElement('div');date.className='meta';date.textContent=dateLabel(e.createdAt);
+  const memo=document.createElement('div');memo.className='memo';memo.textContent=e.newMemo||'BLACKED OUT';
+  content.append(date,memo);const open=document.createElement('button');open.textContent='›';open.onclick=()=>openEditor(e.id);
+  row.append(bar,content,open);root.append(row);
+ });
+}
+function showScreen(id){['home','editor','settings'].forEach(x=>$(x).classList.toggle('active',x===id));}
+function resizeCanvas(){
+ const r=sheet.getBoundingClientRect(), dpr=window.devicePixelRatio||1;
+ canvas.width=Math.round(r.width*dpr);canvas.height=Math.round(r.height*dpr);
+ canvas.style.width=r.width+'px';canvas.style.height=r.height+'px';
+ ctx.setTransform(dpr,0,0,dpr,0,0);redraw();
+}
+function redraw(){
+ const dpr=window.devicePixelRatio||1;ctx.clearRect(0,0,canvas.width/dpr,canvas.height/dpr);
+ if(reveal)return;
+ ctx.strokeStyle='#080808';ctx.fillStyle='#080808';ctx.lineWidth=25;ctx.lineCap='round';ctx.lineJoin='round';
+ for(const line of strokes){if(!line.length)continue;if(line.length===1){ctx.beginPath();ctx.arc(line[0][0],line[0][1],12.5,0,Math.PI*2);ctx.fill()}else{ctx.beginPath();ctx.moveTo(...line[0]);for(const p of line.slice(1))ctx.lineTo(...p);ctx.stroke()}}
+ if(activeStroke?.length){ctx.beginPath();ctx.moveTo(...activeStroke[0]);for(const p of activeStroke.slice(1))ctx.lineTo(...p);ctx.stroke()}
+}
+function setDrawing(v){drawing=v;$('drawBtn').classList.toggle('active',v);$('original').readOnly=v||reveal;$('modeHint').textContent=v?'손가락으로 문질러 검은 잉크를 칠하세요.':'글쓰기 모드 · 원문을 작성하세요.';canvas.style.pointerEvents=v&&!reveal?'auto':'none'}
+function openEditor(id=null){
+ currentId=id;const e=entries.find(x=>x.id===id);
+ $('original').value=e?.original||'';$('newmemo').value=e?.newMemo||'';strokes=e?.strokes||[];activeStroke=null;
+ reveal=false;setDrawing(false);$('revealBtn').style.display=localStorage.getItem(PREF)==='false'?'none':'inline-block';
+ showScreen('editor');requestAnimationFrame(resizeCanvas);
+}
+function saveEntry(){
+ const original=$('original').value.trim(), newMemo=$('newmemo').value.trim();
+ if(!original&&!newMemo){toast('먼저 기록을 작성해 주세요.');return}
+ const old=entries.find(x=>x.id===currentId);
+ const entry={id:currentId||String(Date.now()),original,newMemo,createdAt:old?.createdAt||new Date().toISOString(),strokes};
+ const i=entries.findIndex(x=>x.id===entry.id);if(i>=0)entries[i]=entry;else entries.unshift(entry);
+ persist();renderEntries();showScreen('home');toast('페이지를 저장했습니다.');
+}
+function pos(e){const r=canvas.getBoundingClientRect();return [e.clientX-r.left,e.clientY-r.top]}
+canvas.addEventListener('pointerdown',e=>{if(!drawing||reveal)return;canvas.setPointerCapture(e.pointerId);activeStroke=[pos(e)];redraw()});
+canvas.addEventListener('pointermove',e=>{if(!activeStroke)return;activeStroke.push(pos(e));redraw()});
+function endStroke(){if(activeStroke){strokes.push(activeStroke);activeStroke=null;redraw()}}
+canvas.addEventListener('pointerup',endStroke);canvas.addEventListener('pointercancel',endStroke);
+$('newBtn').onclick=()=>openEditor();$('settingsBtn').onclick=()=>showScreen('settings');
+$('backBtn').onclick=()=>showScreen('home');$('settingsBack').onclick=()=>showScreen('home');$('saveBtn').onclick=saveEntry;
+$('drawBtn').onclick=()=>setDrawing(!drawing);
+$('undoBtn').onclick=()=>{if(activeStroke)activeStroke=null;else strokes.pop();redraw()};
+$('clearBtn').onclick=()=>{if(confirm('검은 칠을 모두 지울까요?')){strokes=[];redraw()}};
+$('revealBtn').onclick=()=>{if(localStorage.getItem(PREF)==='false')return;reveal=!reveal;redraw();$('revealBtn').textContent=reveal?'덮은 화면':'원문 보기';$('original').readOnly=reveal||drawing};
+$('revealSetting').onchange=e=>{reveal=e.target.checked;localStorage.setItem(PREF,String(reveal));$('revealBtn').style.display=reveal?'inline-block':'none';toast('열람 설정을 저장했습니다.')};
+$('exportBtn').onclick=()=>{const blob=new Blob([JSON.stringify(entries,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='blackout-backup.json';a.click();URL.revokeObjectURL(a.href)};
+$('importBtn').onclick=()=>$('importFile').click();
+$('importFile').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const data=JSON.parse(await f.text());if(!Array.isArray(data))throw Error();entries=data;persist();renderEntries();toast('백업을 가져왔습니다.')}catch{toast('올바른 백업 파일이 아닙니다.')}e.target.value=''};
+window.addEventListener('resize',()=>{if($('editor').classList.contains('active'))resizeCanvas()});
+load();
+if('serviceWorker' in navigator && location.protocol.startsWith('http'))navigator.serviceWorker.register('./sw.js').catch(()=>{});
+</script>
+</body>
+</html>
