@@ -38,10 +38,13 @@
     .sectionlabel{font-size:10px;letter-spacing:2px;color:#77736c;font-weight:700}
     #original{width:100%;flex:1;min-height:220px;resize:none;border:0;outline:0;background:transparent;color:#222;font-size:16px;line-height:1.8;padding:18px 0;z-index:1}
     #original::placeholder,#newmemo::placeholder{color:#a29e96}
-    .cover-wrap{position:absolute;inset:0 0 0 0;pointer-events:none;z-index:2}
+    .blackout-panel{display:none;position:absolute;z-index:2;top:48px;left:22px;right:22px;height:270px;background:#050505;border-radius:2px}
+    .cover-wrap{position:absolute;inset:0;pointer-events:none;z-index:3}
     #coverCanvas{width:100%;height:100%;display:block;touch-action:none}
-    .newmemo-wrap{position:relative;z-index:3;background:var(--paper);margin-top:auto;padding-top:13px;border-top:1px solid #ccc8bf}
-    #newmemo{width:100%;resize:vertical;min-height:76px;border:0;outline:0;background:transparent;color:#111;font-size:16px;line-height:1.5;padding:12px 0 0}
+    .newmemo-wrap{display:none;position:absolute;z-index:4;top:48px;left:22px;right:22px;height:270px;padding:16px 15px;background:transparent;border:0}
+    .newmemo-wrap .sectionlabel{color:#aaa}
+    #newmemo{width:100%;height:calc(100% - 18px);resize:none;border:0;outline:0;background:transparent;color:#fff;font-size:16px;line-height:1.8;padding:12px 0 0}
+    #newmemo::placeholder{color:#888}
     .tools{max-width:690px;margin:12px auto;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
     .tool{border:1px solid #3b3b3b;background:#171717;color:var(--paper);padding:10px 12px;border-radius:5px;font-size:11px}
     .tool.active{background:var(--paper);color:#111;border-color:var(--paper)}
@@ -71,11 +74,14 @@
     <div class="sheet" id="sheet">
       <div class="sectionlabel">01 / WHAT HAPPENED?</div>
       <textarea id="original" placeholder="여기에 안 좋았던 일을 적어보세요..."></textarea>
+      <div class="blackout-panel" id="blackoutPanel"></div>
       <div class="cover-wrap"><canvas id="coverCanvas"></canvas></div>
-      <div class="newmemo-wrap"><div class="sectionlabel">02 / SOMETHING NEW</div><textarea id="newmemo" placeholder="이제 새롭게 적고 싶은 말을 써보세요."></textarea></div>
+      <div class="newmemo-wrap" id="newmemoWrap"><div class="sectionlabel">02 / SOMETHING NEW</div><textarea id="newmemo" placeholder="이제 새로운 관점으로 나에게 해주고 싶은 말을 적어보세요."></textarea></div>
     </div>
     <div class="tools">
-      <button class="tool" id="drawBtn">✎ 덮기 모드</button>
+      <button class="tool" id="coverBtn">■ 검게 덮기</button>
+      <button class="tool" id="newTextBtn">＋ 새 글 작성</button>
+      <button class="tool" id="drawBtn">✎ 부분 덮기</button>
       <button class="tool" id="undoBtn">↶ 실행 취소</button>
       <button class="tool" id="clearBtn">초기화</button>
       <button class="tool" id="revealBtn">원문 보기</button>
@@ -102,7 +108,7 @@
 <script>
 const $ = id => document.getElementById(id);
 const STORE='blackout_pwa_entries_v1', PREF='blackout_pwa_reveal_v1';
-let entries=[], currentId=null, strokes=[], activeStroke=null, drawing=false, reveal=true, editorMode=false;
+let entries=[], currentId=null, strokes=[], activeStroke=null, drawing=false, reveal=false, covered=false, newTextMode=false;
 let canvas=$('coverCanvas'), ctx=canvas.getContext('2d'), sheet=$('sheet');
 
 function toast(msg){const t=$('toast');t.textContent=msg;t.style.display='block';setTimeout(()=>t.style.display='none',2200)}
@@ -129,17 +135,27 @@ function resizeCanvas(){
  canvas.style.width=r.width+'px';canvas.style.height=r.height+'px';
  ctx.setTransform(dpr,0,0,dpr,0,0);redraw();
 }
+function updateCoverView(){
+ const visible=covered&&!reveal;
+ $('blackoutPanel').style.display=visible?'block':'none';
+ $('newmemoWrap').style.display=visible&&newTextMode?'block':'none';
+ $('coverBtn').classList.toggle('active',covered);
+ $('newTextBtn').classList.toggle('active',newTextMode&&visible);
+ $('newTextBtn').disabled=!covered;
+ $('original').style.visibility=visible?'visible':'visible';
+}
 function redraw(){
  const dpr=window.devicePixelRatio||1;ctx.clearRect(0,0,canvas.width/dpr,canvas.height/dpr);
- if(reveal)return;
+ if(reveal){updateCoverView();return;}
  ctx.strokeStyle='#080808';ctx.fillStyle='#080808';ctx.lineWidth=25;ctx.lineCap='round';ctx.lineJoin='round';
  for(const line of strokes){if(!line.length)continue;if(line.length===1){ctx.beginPath();ctx.arc(line[0][0],line[0][1],12.5,0,Math.PI*2);ctx.fill()}else{ctx.beginPath();ctx.moveTo(...line[0]);for(const p of line.slice(1))ctx.lineTo(...p);ctx.stroke()}}
  if(activeStroke?.length){ctx.beginPath();ctx.moveTo(...activeStroke[0]);for(const p of activeStroke.slice(1))ctx.lineTo(...p);ctx.stroke()}
+ updateCoverView();
 }
-function setDrawing(v){drawing=v;$('drawBtn').classList.toggle('active',v);$('original').readOnly=v||reveal;$('modeHint').textContent=v?'손가락으로 문질러 검은 잉크를 칠하세요.':'글쓰기 모드 · 원문을 작성하세요.';canvas.style.pointerEvents=v&&!reveal?'auto':'none'}
+function setDrawing(v){drawing=v;$('drawBtn').classList.toggle('active',v);$('original').readOnly=v||reveal||covered;$('modeHint').textContent=v?'손가락으로 문질러 검은 잉크를 칠하세요.':(covered?(newTextMode?'검은 영역 위에 새 문장을 작성하세요.':'검은 영역이 준비됐어요. 새 글 작성을 눌러보세요.'):'글쓰기 모드 · 원문을 작성하세요.');canvas.style.pointerEvents=v&&!reveal?'auto':'none'}
 function openEditor(id=null){
  currentId=id;const e=entries.find(x=>x.id===id);
- $('original').value=e?.original||'';$('newmemo').value=e?.newMemo||'';strokes=e?.strokes||[];activeStroke=null;
+ $('original').value=e?.original||'';$('newmemo').value=e?.newMemo||'';strokes=e?.strokes||[];covered=!!e?.covered;newTextMode=!!(e?.newMemo);activeStroke=null;
  reveal=false;setDrawing(false);$('revealBtn').style.display=localStorage.getItem(PREF)==='false'?'none':'inline-block';
  showScreen('editor');requestAnimationFrame(resizeCanvas);
 }
@@ -147,7 +163,7 @@ function saveEntry(){
  const original=$('original').value.trim(), newMemo=$('newmemo').value.trim();
  if(!original&&!newMemo){toast('먼저 기록을 작성해 주세요.');return}
  const old=entries.find(x=>x.id===currentId);
- const entry={id:currentId||String(Date.now()),original,newMemo,createdAt:old?.createdAt||new Date().toISOString(),strokes};
+ const entry={id:currentId||String(Date.now()),original,newMemo,covered,createdAt:old?.createdAt||new Date().toISOString(),strokes};
  const i=entries.findIndex(x=>x.id===entry.id);if(i>=0)entries[i]=entry;else entries.unshift(entry);
  persist();renderEntries();showScreen('home');toast('페이지를 저장했습니다.');
 }
@@ -158,11 +174,13 @@ function endStroke(){if(activeStroke){strokes.push(activeStroke);activeStroke=nu
 canvas.addEventListener('pointerup',endStroke);canvas.addEventListener('pointercancel',endStroke);
 $('newBtn').onclick=()=>openEditor();$('settingsBtn').onclick=()=>showScreen('settings');
 $('backBtn').onclick=()=>showScreen('home');$('settingsBack').onclick=()=>showScreen('home');$('saveBtn').onclick=saveEntry;
-$('drawBtn').onclick=()=>setDrawing(!drawing);
+$('coverBtn').onclick=()=>{covered=!covered;if(!covered)newTextMode=false;setDrawing(false);updateCoverView();$('modeHint').textContent=covered?'검은 영역이 만들어졌어요. 그 위에 새 글을 작성할 수 있습니다.':'원문 작성 모드입니다.'};
+$('newTextBtn').onclick=()=>{if(!covered){toast('먼저 검게 덮어주세요.');return}newTextMode=!newTextMode;setDrawing(false);updateCoverView();$('modeHint').textContent=newTextMode?'검은 영역 위에 새 문장을 작성하세요.':'새 글 작성 모드를 닫았습니다.';if(newTextMode)$('newmemo').focus()};
+$('drawBtn').onclick=()=>{if(!covered){toast('먼저 검게 덮어주세요.');return}setDrawing(!drawing);if(drawing)newTextMode=false;updateCoverView()};
 $('undoBtn').onclick=()=>{if(activeStroke)activeStroke=null;else strokes.pop();redraw()};
-$('clearBtn').onclick=()=>{if(confirm('검은 칠을 모두 지울까요?')){strokes=[];redraw()}};
-$('revealBtn').onclick=()=>{if(localStorage.getItem(PREF)==='false')return;reveal=!reveal;redraw();$('revealBtn').textContent=reveal?'덮은 화면':'원문 보기';$('original').readOnly=reveal||drawing};
-$('revealSetting').onchange=e=>{reveal=e.target.checked;localStorage.setItem(PREF,String(reveal));$('revealBtn').style.display=reveal?'inline-block':'none';toast('열람 설정을 저장했습니다.')};
+$('clearBtn').onclick=()=>{if(confirm('검은 덮개와 부분 칠을 모두 지울까요?')){strokes=[];covered=false;newTextMode=false;setDrawing(false);redraw()}};
+$('revealBtn').onclick=()=>{if(localStorage.getItem(PREF)==='false')return;reveal=!reveal;redraw();$('revealBtn').textContent=reveal?'덮은 화면':'원문 보기';$('original').readOnly=reveal||drawing||covered;};
+$('revealSetting').onchange=e=>{reveal=e.target.checked;localStorage.setItem(PREF,String(reveal));$('revealBtn').style.display=reveal?'inline-block':'none';redraw();toast('열람 설정을 저장했습니다.')};
 $('exportBtn').onclick=()=>{const blob=new Blob([JSON.stringify(entries,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='blackout-backup.json';a.click();URL.revokeObjectURL(a.href)};
 $('importBtn').onclick=()=>$('importFile').click();
 $('importFile').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const data=JSON.parse(await f.text());if(!Array.isArray(data))throw Error();entries=data;persist();renderEntries();toast('백업을 가져왔습니다.')}catch{toast('올바른 백업 파일이 아닙니다.')}e.target.value=''};
